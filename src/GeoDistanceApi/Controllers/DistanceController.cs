@@ -18,13 +18,25 @@ public class DistanceController : ControllerBase
     }
 
     [HttpPost("calculate")]
-    public IActionResult Calculate([FromBody] DistanceRequest request)
+    [ProducesResponseType(typeof(DistanceResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    public IActionResult Calculate([FromBody] DistanceRequest? request)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
         if (request?.From == null || request?.To == null)
-            return BadRequest("Both coordinates required");
+        {
+            return BadRequest(new ErrorResponse 
+            { 
+                Message = "Both 'from' and 'to' coordinates are required" 
+            });
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(new ErrorResponse
+            {
+                Message = "Coordinates must be in range: Latitude[-90,90], Longitude[-180,180]"
+            });
+        }
 
         try
         {
@@ -36,10 +48,19 @@ public class DistanceController : ControllerBase
                 To = request.To
             });
         }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invalid arguments");
+            return BadRequest(new ErrorResponse { Message = ex.Message });
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error calculating distance");
-            return StatusCode(500, new ErrorResponse { Message = "Calculation failed" });
+            _logger.LogError(ex, "Unexpected error");
+            return StatusCode(500, new ErrorResponse 
+            { 
+                Message = "Internal error calculating distance",
+                Details = ex.Message 
+            });
         }
     }
 }
